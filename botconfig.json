@@ -1,0 +1,27 @@
+{
+  "intents": {
+    "commands": {
+      "/start": "Добро пожаловать! \nЯ помощник по подбору лучшего предложения в среде отелей для Вас",
+      "/lowprice": "commands/lowprice.py",
+      "/highprice": "commands/highprice.py",
+      "/bestdeal": "commands/bestdeal.py",
+      "/help": "commands/help.py"
+    },
+    "hello": {
+      "example": [
+        "привет",
+        "здравствуй"
+      ],
+      "answer": "Здравствуйте!\nСписок доступных команд: /help"
+    },
+    "bye": {
+      "example": [
+        "до свидания",
+        "пока",
+        "прощай"
+      ],
+      "answer": "Всего доброго!"
+    }
+  },
+  "default": "Извините, я Вас не понимаю."
+}
