@@ -3,12 +3,13 @@ import re
 import json
 import telebot
 import nltk
-import subprocess
 from telebot import TeleBot
 from typing import List, Dict, Union, Optional
 from dotenv import load_dotenv
 import os
-import shlex
+# импорт скриптов
+from commands.help import help
+from commands.lowprice import get_city
 load_dotenv()
 # BOT INFO: @hotelanalysisbot
 TOKEN: str = os.getenv('TOKEN')
@@ -34,72 +35,47 @@ def clean(text: str) -> str:
 
 
 def get_answer(text: str) -> str:
-    if text.startswith('/'):  # обработка команд
-        for command in BOT_CONFIG['intents']['commands']:
-            if text == command:
-                return BOT_CONFIG['intents']['commands'][command]
-    else:  # обработка простых сообщений
-        text = clean(text)
-        for intent in BOT_CONFIG['intents']:
-            if intent == 'commands':
-                continue
-            for example in BOT_CONFIG['intents'][intent]['example']:
-                if nltk.edit_distance(text, example)/max(len(text), len(example)) * 100 < 40:
-                    # если различие между 2 словами менее, чем 40%, то пропускаем слово (может понадобится, если человек
-                    # делает какую-то орфографическую ошибку в слове)
-                    return BOT_CONFIG['intents'][intent]['answer']
-            else:
-                return BOT_CONFIG['default']
+    text = clean(text)
+    for intent in BOT_CONFIG['intents']:
+        if intent == 'commands':
+            continue
+        for example in BOT_CONFIG['intents'][intent]['example']:
+            if nltk.edit_distance(text, example)/max(len(text), len(example)) * 100 < 40:
+                # если различие между 2 словами менее, чем 40%, то пропускаем слово (может понадобится, если человек
+                # делает какую-то орфографическую ошибку в слове)
+                return BOT_CONFIG['intents'][intent]['answer']
+    else:
+        return BOT_CONFIG['default']
+
+
+@bot.message_handler(commands=['help', 'start'])
+def main_commands_catcher(message):
+    result = ''
+    if message.text == '/start':
+        result = 'Добро пожаловать!\nЯ помощник по подбору лучшего предложения в среде отелей для Вас\n'
+    result += help(BOT_CONFIG)
+    bot.send_message(message.from_user.id, result)
+
+
+@bot.message_handler(commands=['lowprice', 'highprice', 'bestdeal'])
+def additional_commands_catcher(message):
+    globals()[message.text[1:]](message)
 
 
 @bot.message_handler(content_types=['text'])
-def work(message) -> None:
+def text_catcher(message) -> None:
     """
     Main function which forces bot to work.
     :param message: text from user
     :return: None
     """
     reply: str = get_answer(message.text)
-    if reply[0:8] == 'commands':
-        if reply[9:] == 'help.py':
-            with subprocess.Popen(['python', reply], stdout=subprocess.PIPE) as process:
-                bot.send_message(message.from_user.id, process.stdout.read().decode(encoding='utf-8'))
-        else:
-            bot.send_message(message.from_user.id, 'Введите город, где будет проводится поиск.')
-            bot.register_next_step_handler(message, get_city, reply)
-    else:
-        bot.send_message(message.from_user.id, reply)
+    bot.send_message(message.from_user.id, reply)
 
 
-def get_city(message, path: str):
-    global max_hotel_count
-    if message.text.isalpha():
-        command = shlex.split(f'python {path}')
-        with subprocess.run(command, stdout=subprocess.PIPE, input=message.text.encode()) as process:
-            result = process.stdout.read().decode(encoding='utf-8')
-        result = json.loads(result)
-        max_hotel_count = len(result['suggestions'][1]['entities'])
-        bot.send_message(message.from_user.id, 'Введите количество отелей, которые необходимо вывести в результате.')
-        bot.register_next_step_handler(message, get_hotel_count, path)
-    else:
-        bot.send_message(message.from_user.id, 'В ответе не должно быть символов, кроме символов текста.')
-
-
-def get_hotel_count(message, path: str):
-    global hotel_count
-    try:
-        hotel_count = int(message.text)
-    except TypeError:
-        bot.send_message(message.from_user.id, 'В ответе должно быть только число.')
-    else:
-        global max_hotel_count
-        if hotel_count > max_hotel_count:
-            bot.send_message(message.from_user.id,
-                             f'Вы запрашиваете слишком много отелей.\nКол-во отелей, которое будет '
-                             f'выведено: {max_hotel_count}')
-        else:
-            max_hotel_count = hotel_count
-            print(f'Кол-во отелей, которое будет выведено: {max_hotel_count}')
+def lowprice(message):
+    bot.send_message(message.from_user.id, 'Введите город, где будет проводится поиск.')
+    bot.register_next_step_handler(message, get_city, message.text[1:])
 
 
 if __name__ == '__main__':
