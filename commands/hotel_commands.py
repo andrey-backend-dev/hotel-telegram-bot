@@ -86,12 +86,21 @@ def price_range(message, querystring: str) -> None:
     :param message: message-object from an user
     :param querystring: querystring for request
     """
-    querystring["priceMin"], querystring["priceMax"] = message.text.split('-')
-    url = "https://hotels4.p.rapidapi.com/properties/list"
-    response = requests.request('GET', url=url, headers=headers, params=querystring)
-    response = json.loads(response.text)
-    bot.send_message(message.from_user.id, 'Введите диапазон расстояния отеля от центра в формате "min-max" (в км). Пример: 0.5-2')
-    bot.register_next_step_handler(message, distance_range, response)
+    try:
+        querystring["priceMin"] = int(message.text.split('-')[0])
+        querystring["priceMax"] = int(message.text.split('-')[1])
+    except ValueError:
+        bot.send_message(message.from_user.id, 'В ответе должно быть только число.')
+    else:
+        url = "https://hotels4.p.rapidapi.com/properties/list"
+        response = requests.request('GET', url=url, headers=headers, params=querystring)
+        response = json.loads(response.text)
+        if len(response['data']['body']['searchResults']['results']) == 0:
+            bot.send_message(message.from_user.id, 'Извините, но мы не нашли отеля, подходящего бы для Вас :(')
+        else:
+            bot.send_message(message.from_user.id,
+                             'Введите диапазон расстояния отеля от центра в формате "min-max" (в км). Пример: 0.5-2')
+            bot.register_next_step_handler(message, distance_range, response)
 
 
 def distance_range(message, response: Dict) -> None:
@@ -100,24 +109,27 @@ def distance_range(message, response: Dict) -> None:
     :param message: message-object from an user
     :param response: response from user's request
     """
-    min_distance, max_distance = message.text.split('-')
-    min_distance, max_distance = re.sub(',', '.', min_distance), re.sub(',', '.', max_distance)
-    min_distance, max_distance = float(min_distance), float(max_distance)
-
-    total_indexes: int = 10
-    if len(response['data']['body']['searchResults']['results']) < total_indexes:
-        total_indexes = len(response['data']['body']['searchResults']['results'])
-    for hotel in range(10):
-        actual_index = hotel - 10 + total_indexes
-        distance = response['data']['body']['searchResults']['results'][actual_index]['landmarks'][0]['distance']
-        distance = re.findall(r'[0-9,]+', distance)[0]
-        distance = float(re.sub(',', '.', distance))
-        if not min_distance <= distance <= max_distance:
-            response['data']['body']['searchResults']['results'].pop(actual_index)
-            total_indexes -= 1
-
-    bot.send_message(message.from_user.id, 'Введите количество отелей, которые необходимо вывести в результате.')
-    bot.register_next_step_handler(message, get_hotel_count, response, total_indexes)
+    try:
+        min_distance, max_distance = message.text.split('-')
+        min_distance, max_distance = re.sub(',', '.', min_distance), re.sub(',', '.', max_distance)
+        min_distance, max_distance = float(min_distance), float(max_distance)
+    except ValueError:
+        bot.send_message(message.from_user.id, 'В ответе должно быть только число.')
+    else:
+        total_indexes: int = 10
+        if len(response['data']['body']['searchResults']['results']) < total_indexes:
+            total_indexes = len(response['data']['body']['searchResults']['results'])
+        max_index = total_indexes
+        for hotel in range(max_index):
+            actual_index = hotel - max_index + total_indexes
+            distance = response['data']['body']['searchResults']['results'][actual_index]['landmarks'][0]['distance']
+            distance = re.findall(r'[0-9,]+', distance)[0]
+            distance = float(re.sub(',', '.', distance))
+            if not min_distance <= distance <= max_distance:
+                response['data']['body']['searchResults']['results'].pop(actual_index)
+                total_indexes -= 1
+        bot.send_message(message.from_user.id, 'Введите количество отелей, которые необходимо вывести в результате.')
+        bot.register_next_step_handler(message, get_hotel_count, response, total_indexes)
 
 
 def result_func(message, response: Dict, hotel_count: int) -> None:
@@ -129,13 +141,15 @@ def result_func(message, response: Dict, hotel_count: int) -> None:
     :param hotel_count: num of hotels which will be sent to an user
     :return:
     """
-    for hotel in range(hotel_count):
-        if response['result'] == 'ERROR':
-            bot.send_message(message.from_user.id, 'Неизвестная ошибка.')
-            print(response['error_message'])
-        else:
+
+    if response['result'] == 'ERROR':
+        bot.send_message(message.from_user.id, 'Неизвестная ошибка.')
+        print(response['error_message'])
+    elif hotel_count == 0:
+        bot.send_message(message.from_user.id, 'Извините, но мы не нашли отеля, подходящего бы для Вас :(')
+    else:
+        for hotel in range(hotel_count):
             name = f"{hotel + 1}. Название отеля: {response['data']['body']['searchResults']['results'][hotel]['name']}"
-            print(f"{hotel + 1}. Название отеля: {response['data']['body']['searchResults']['results'][hotel]['id']}")
             if 'streetAddress' in response['data']['body']['searchResults']['results'][hotel]['address']:
                 address = f"Адрес: {response['data']['body']['searchResults']['results'][hotel]['address']['streetAddress']}"
             else:
