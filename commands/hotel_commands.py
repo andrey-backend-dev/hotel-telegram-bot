@@ -1,13 +1,16 @@
+import os
 import re
 import requests
 from requests import Response
 from telebot import TeleBot
 from typing import Dict, Union, Optional
 from datetime import datetime
+from dotenv import load_dotenv
 import json
+load_dotenv()
 bot: Optional[TeleBot] = None
 headers = {
-            'x-rapidapi-key': "25aa467c2fmsh0ea943a8f40746dp1e2ef1jsn43ca10d68680",
+            'x-rapidapi-key': os.getenv('rapidapi-key'),
             'x-rapidapi-host': "hotels4.p.rapidapi.com"
         }
 
@@ -25,8 +28,9 @@ def get_city(message, command: str, user_bot: TeleBot) -> None:
     bot = user_bot
     if message.text.isalpha():
         url: str = "https://hotels4.p.rapidapi.com/locations/search"
-        querystring: Dict[str: str] = {"query": message.text,
+        querystring: Dict[str: Union[int, str]] = {"query": message.text,
                        "locale": 'ru_RU'}
+        bot.send_message(message.from_user.id, 'Идет поиск отелей.  Это может занять несколько секунд...')
         response: Union[Response, Dict] = requests.request("GET", url, headers=headers, params=querystring)
         response = json.loads(response.text)
         destination_id: int = int(response['suggestions'][0]['entities'][0]['destinationId'])
@@ -44,7 +48,6 @@ def get_city(message, command: str, user_bot: TeleBot) -> None:
                 querystring["sortOrder"] = "PRICE"
             else:
                 querystring["sortOrder"] = "PRICE_HIGHEST_FIRST"
-
             response = requests.request('GET', url=url, headers=headers, params=querystring)
             response = json.loads(response.text)
 
@@ -80,7 +83,7 @@ def get_hotel_count(message, response: Dict, max_hotel_count) -> None:
         result_func(message, response, max_hotel_count)
 
 
-def price_range(message, querystring: str) -> None:
+def price_range(message, querystring: Dict[str, Union[int, str]]) -> None:
     """
     Function which gets from user minimal price and maximal price of a hotel and sends a request.
     :param message: message-object from an user
@@ -93,6 +96,7 @@ def price_range(message, querystring: str) -> None:
         bot.send_message(message.from_user.id, 'В ответе должно быть только число.')
     else:
         url = "https://hotels4.p.rapidapi.com/properties/list"
+        bot.send_message(message.from_user.id, 'Идет поиск отелей.  Это может занять несколько секунд...')
         response = requests.request('GET', url=url, headers=headers, params=querystring)
         response = json.loads(response.text)
         if len(response['data']['body']['searchResults']['results']) == 0:
