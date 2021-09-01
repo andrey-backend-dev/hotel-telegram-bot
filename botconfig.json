@@ -1,12 +1,12 @@
 {
   "intents": {
-    "commands": {
-      "/start": "Добро пожаловать! \nЯ помощник по подбору лучшего предложения в среде отелей для Вас",
-      "/lowprice": "commands/lowprice.py",
-      "/highprice": "commands/highprice.py",
-      "/bestdeal": "commands/bestdeal.py",
-      "/help": "commands/help.py"
-    },
+    "commands": [
+      "/start",
+      "/lowprice",
+      "/highprice",
+      "/bestdeal",
+      "/help"
+    ],
     "hello": {
       "example": [
         "привет",
